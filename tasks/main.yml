@@ -1,0 +1,85 @@
+---
+# tasks file for k8s_worker
+- name: Installing  Docker
+  package:
+       name: "docker"
+       state: present
+
+- name: Enable Docker Services
+  service:
+       name: "docker"
+       state: started
+       enabled: yes
+
+- name: Configuring Kubernetes Repo
+  yum_repository:
+       name: "kubernetes"
+       description: "kubernetes"
+       baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+       gpgcheck: yes
+       enabled: yes
+       repo_gpgcheck: yes
+       gpgkey:
+          - https://packages.cloud.google.com/yum/doc/yum-key.gpg
+          - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+       exclude: kubelet kubeadm kubectl
+       state: present
+
+- name: Importing the keys for repo
+  rpm_key:
+       key: "{{ item  }}"
+       state: present
+  loop:
+    - https://packages.cloud.google.com/yum/doc/yum-key.gpg
+    - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+
+- name: Installing kubelet kubeadm and kubectl
+  yum:
+       name: "{{ pckgs }}"
+       state: present
+       disable_excludes: kubernetes
+  vars:
+       pckgs:
+       - kubelet
+       - kubeadm
+       - kubectl
+
+- name: Starting kubelet services
+  service:
+       name: kubelet
+       state: started
+       enabled: yes
+
+- name: Change Cgroup Drivers of Docker
+  copy:
+       content: {
+  "exec-opts": ["native.cgroupdriver=systemd"]
+}
+       dest: /etc/docker/daemon.json
+
+- name: Restarting services
+  service:
+       name: docker
+       state: restarted
+
+- name: Install iproute-tc
+  yum:
+       name: iproute-tc
+       state: present
+
+- name: Getting the Worker ready
+  copy:
+      dest: '/etc/sysctl.d/k8s.conf'
+      content: "{{ item  }}"
+  loop:
+   - net.bridge.bridge-nf-call-ip6tables = 1
+   - net.bridge.bridge-nf-call-iptables = 1
+
+- name: Getting the worker ready
+  command:
+      cmd: "sysctl --system"
+
+
+
+
+
